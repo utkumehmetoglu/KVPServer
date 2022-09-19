@@ -18,7 +18,8 @@ namespace KVP.KVP
         private static string IP = GlobalConstants.ListenIp;
         private static int ListenPort = GlobalConstants.KvpPort;
         private ConcurrentQueue<KvpMessage> MessagesQueue = new ConcurrentQueue<KvpMessage>();
-        public CancellationToken CancellationToken = new CancellationToken();
+        public bool RequestCancel = false;
+        public bool Canceled;
         Mutex MessagesMutex = new Mutex(false,"MessagesMutex");
 
         public KvpServer()
@@ -37,7 +38,7 @@ namespace KVP.KVP
                 while (true)
                 {
 
-                    if (CancellationToken.IsCancellationRequested)
+                    if (RequestCancel)
                         return; // Kill the thread
 
                     TcpClient client = server.AcceptTcpClient();
@@ -57,12 +58,14 @@ namespace KVP.KVP
             catch (SocketException e)
             {
                 throw new KvpSocketException(e.Message);
+                
                 server.Stop();
             }
         }
 
         public void HandleClient(Object obj)
         {
+
             TcpClient client = (TcpClient)obj;
             var stream = client.GetStream();
             KvpExtractor priormessage = new KvpExtractor("");
@@ -71,6 +74,8 @@ namespace KVP.KVP
             byte[] buffer = new byte[1024];
             while ((i = stream.Read(buffer, 0, buffer.Length)) != 0)
             {
+                if (RequestCancel)
+                    return; // Kill the thread
                 String data = Encoding.ASCII.GetString(buffer, 0, i);
                 KvpExtractor kvpExtractor = new KvpExtractor(data);
 
